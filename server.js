@@ -9,12 +9,28 @@ const io = new Server(server, { cors: { origin: "*" } });
 
 app.use(express.static(path.join(__dirname, 'public')));
 
-io.on('connection', (socket) => {
-  console.log('Новое подключение');
+// Храним данные пользователей: { "Имя": "Число/Значение" }
+const usersData = {};
 
-  socket.on('push_data', (data) => {
-    // Пересылаем полученное значение ВСЕМ подключенным клиентам
-    io.emit('update_data', data);
+io.on('connection', (socket) => {
+  let currentUserName = "";
+
+  // Пользователь вводит имя при входе
+  socket.on('join_user', (name) => {
+    currentUserName = name;
+    if (!usersData[currentUserName]) {
+      usersData[currentUserName] = "0"; // Начальное значение по умолчанию
+    }
+    // Отправляем обновленный список всех пользователей каждому клиенту
+    io.emit('update_table', usersData);
+  });
+
+  // Пользователь нажимает PUSH для отправки своего числа
+  socket.on('push_data', (value) => {
+    if (currentUserName) {
+      usersData[currentUserName] = value;
+      io.emit('update_table', usersData);
+    }
   });
 });
 
