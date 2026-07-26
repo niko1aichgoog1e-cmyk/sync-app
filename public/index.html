@@ -13,6 +13,8 @@
     button:hover { background: #0056b3; }
     button.secondary { background: #6c757d; }
     button.secondary:hover { background: #5a6268; }
+    button.danger { background: #dc3545; }
+    button.danger:hover { background: #bd2130; }
     .hidden { display: none; }
     .error { color: red; font-size: 14px; margin-bottom: 10px; }
     .success { color: green; font-size: 14px; margin-bottom: 10px; }
@@ -41,6 +43,7 @@
     <h3 id="welcomeMsg">Привет!</h3>
     <input type="number" id="numInput" placeholder="Введите ваше число...">
     <button id="pushBtn">PUSH</button>
+    <button id="logoutBtn" class="danger">Выйти из аккаунта</button>
 
     <h4>Онлайн таблица</h4>
     <table>
@@ -57,7 +60,7 @@
   <script>
     const socket = io();
 
-    let isLoginMode = true; // true = Вход, false = Регистрация
+    let isLoginMode = true;
     let myUsername = "";
 
     const authScreen = document.getElementById('authScreen');
@@ -72,7 +75,24 @@
     const welcomeMsg = document.getElementById('welcomeMsg');
     const numInput = document.getElementById('numInput');
     const pushBtn = document.getElementById('pushBtn');
+    const logoutBtn = document.getElementById('logoutBtn');
     const tableBody = document.getElementById('tableBody');
+
+    // Проверяем, есть ли сохраненные данные в памяти браузера (localStorage)
+    socket.on('connect', () => {
+      const savedUser = localStorage.getItem('sync_user');
+      if (savedUser) {
+        try {
+          const { username, password } = JSON.parse(savedUser);
+          usernameInput.value = username;
+          passwordInput.value = password;
+          // Автоматический вход при подключении
+          socket.emit('login', { username, password });
+        } catch (e) {
+          localStorage.removeItem('sync_user');
+        }
+      }
+    });
 
     // Переключение режим Вход / Регистрация
     toggleAuthBtn.addEventListener('click', () => {
@@ -89,7 +109,7 @@
       }
     });
 
-    // Нажатие главной кнопки (Вход или Регистрация)
+    // Нажатие Войти / Зарегистрироваться
     authPrimaryBtn.addEventListener('click', () => {
       const username = usernameInput.value;
       const password = passwordInput.value;
@@ -104,6 +124,8 @@
 
     // Обработка ошибок
     socket.on('auth_error', (msg) => {
+      // Если автовход не удался (например, пароль изменился) - чистим память
+      localStorage.removeItem('sync_user');
       msgBox.innerHTML = `<div class="error">${msg}</div>`;
     });
 
@@ -120,10 +142,23 @@
     // Успешный вход
     socket.on('login_success', (data) => {
       myUsername = data.username;
+      
+      // СОХРАНЯЕМ СЕССИЮ В ЛОКАЛЬНУЮ ПАМЯТЬ БРАУЗЕРА
+      localStorage.setItem('sync_user', JSON.stringify({
+        username: usernameInput.value,
+        password: passwordInput.value
+      }));
+
       welcomeMsg.innerText = "Вы вошли как: " + myUsername;
       authScreen.classList.add('hidden');
       mainScreen.classList.remove('hidden');
       renderTable(data.tableData);
+    });
+
+    // Выход из аккаунта
+    logoutBtn.addEventListener('click', () => {
+      localStorage.removeItem('sync_user');
+      location.reload(); // Перезагружаем страницу для чистого входа
     });
 
     // Нажатие PUSH
