@@ -3,34 +3,87 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Sync App - Web Client</title>
+  <title>Sync App</title>
   <script src="/socket.io/socket.io.js"></script>
   <style>
-    body { font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; background: #f0f2f5; }
-    .card { background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); text-align: center; width: 300px; }
-    input { width: 100%; padding: 12px; margin-bottom: 15px; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box; font-size: 16px; }
-    button { width: 100%; padding: 12px; background: #007bff; color: white; border: none; border-radius: 6px; font-size: 16px; cursor: pointer; }
+    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; background: #f0f2f5; }
+    .card { background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); text-align: center; width: 320px; }
+    input { width: 100%; padding: 12px; margin-bottom: 12px; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box; font-size: 16px; }
+    button { width: 100%; padding: 12px; background: #007bff; color: white; border: none; border-radius: 6px; font-size: 16px; cursor: pointer; font-weight: bold; }
     button:hover { background: #0056b3; }
+    .hidden { display: none; }
+    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+    th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+    th { background-color: #007bff; color: white; }
+    tr:nth-child(even) { background-color: #f2f2f2; }
   </style>
 </head>
 <body>
-  <div class="card">
-    <h2>🌐 Веб-клиент</h2>
-    <input type="text" id="field1" placeholder="Введите значение...">
+
+  <!-- Экран 1: Ввод Имени -->
+  <div id="loginScreen" class="card">
+    <h2>Вход в систему</h2>
+    <input type="text" id="nameInput" placeholder="Введите ваше имя...">
+    <button id="loginBtn">Войти</button>
+  </div>
+
+  <!-- Экран 2: Панель управления и Таблица -->
+  <div id="mainScreen" class="card hidden">
+    <h3 id="welcomeMsg">Привет!</h3>
+    <input type="number" id="numInput" placeholder="Введите ваше число...">
     <button id="pushBtn">PUSH</button>
+
+    <h4>Онлайн таблица</h4>
+    <table>
+      <thead>
+        <tr>
+          <th>Имя</th>
+          <th>Число</th>
+        </tr>
+      </thead>
+      <tbody id="tableBody"></tbody>
+    </table>
   </div>
 
   <script>
     const socket = io();
-    const field1 = document.getElementById('field1');
-    const pushBtn = document.getElementById('pushBtn');
 
-    pushBtn.addEventListener('click', () => {
-      socket.emit('push_data', field1.value);
+    const loginScreen = document.getElementById('loginScreen');
+    const mainScreen = document.getElementById('mainScreen');
+    const nameInput = document.getElementById('nameInput');
+    const loginBtn = document.getElementById('loginBtn');
+    const welcomeMsg = document.getElementById('welcomeMsg');
+    const numInput = document.getElementById('numInput');
+    const pushBtn = document.getElementById('pushBtn');
+    const tableBody = document.getElementById('tableBody');
+
+    let myName = "";
+
+    // Вход под именем
+    loginBtn.addEventListener('click', () => {
+      const name = nameInput.value.trim();
+      if (name) {
+        myName = name;
+        welcomeMsg.innerText = "Имя: " + myName;
+        loginScreen.classList.add('hidden');
+        mainScreen.classList.remove('hidden');
+        socket.emit('join_user', myName);
+      }
     });
 
-    socket.on('update_data', (data) => {
-      field1.value = data;
+    // Отправка числа по кнопке Push
+    pushBtn.addEventListener('click', () => {
+      socket.emit('push_data', numInput.value);
+    });
+
+    // Обновление таблицы в режиме реального времени
+    socket.on('update_table', (usersData) => {
+      tableBody.innerHTML = "";
+      for (const [name, val] of Object.entries(usersData)) {
+        const row = document.createElement('tr');
+        row.innerHTML = `<td><b>${name}</b></td><td>${val}</td>`;
+        tableBody.appendChild(row);
+      }
     });
   </script>
 </body>
