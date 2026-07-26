@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sync App - Web Client</title>
+  <script src="/socket.io/socket.io.js"></script>
+  <style>
+    body { font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; background: #f0f2f5; }
+    .card { background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); text-align: center; width: 300px; }
+    input { width: 100%; padding: 12px; margin-bottom: 15px; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box; font-size: 16px; }
+    button { width: 100%; padding: 12px; background: #007bff; color: white; border: none; border-radius: 6px; font-size: 16px; cursor: pointer; }
+    button:hover { background: #0056b3; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h2>🌐 Веб-клиент</h2>
+    <input type="text" id="field1" placeholder="Введите значение...">
+    <button id="pushBtn">PUSH</button>
+  </div>
+
+  <script>
+    const socket = io();
+    const field1 = document.getElementById('field1');
+    const pushBtn = document.getElementById('pushBtn');
+
+    pushBtn.addEventListener('click', () => {
+      socket.emit('push_data', field1.value);
+    });
+
+    socket.on('update_data', (data) => {
+      field1.value = data;
+    });
+  </script>
+</body>
+</html>
