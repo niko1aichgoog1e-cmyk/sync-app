@@ -9,9 +9,13 @@
     body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; background: #f0f2f5; }
     .card { background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); text-align: center; width: 320px; }
     input { width: 100%; padding: 12px; margin-bottom: 12px; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box; font-size: 16px; }
-    button { width: 100%; padding: 12px; background: #007bff; color: white; border: none; border-radius: 6px; font-size: 16px; cursor: pointer; font-weight: bold; }
+    button { width: 100%; padding: 12px; background: #007bff; color: white; border: none; border-radius: 6px; font-size: 16px; cursor: pointer; font-weight: bold; margin-bottom: 8px; }
     button:hover { background: #0056b3; }
+    button.secondary { background: #6c757d; }
+    button.secondary:hover { background: #5a6268; }
     .hidden { display: none; }
+    .error { color: red; font-size: 14px; margin-bottom: 10px; }
+    .success { color: green; font-size: 14px; margin-bottom: 10px; }
     table { width: 100%; border-collapse: collapse; margin-top: 20px; }
     th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
     th { background-color: #007bff; color: white; }
@@ -20,14 +24,19 @@
 </head>
 <body>
 
-  <!-- Экран 1: Ввод Имени -->
-  <div id="loginScreen" class="card">
-    <h2>Вход в систему</h2>
-    <input type="text" id="nameInput" placeholder="Введите ваше имя...">
-    <button id="loginBtn">Войти</button>
+  <!-- Экран Входа / Регистрации -->
+  <div id="authScreen" class="card">
+    <h2 id="authTitle">Вход в систему</h2>
+    <div id="msgBox"></div>
+    
+    <input type="text" id="usernameInput" placeholder="Имя пользователя...">
+    <input type="password" id="passwordInput" placeholder="Пароль...">
+
+    <button id="authPrimaryBtn">Войти</button>
+    <button id="toggleAuthBtn" class="secondary">Нет аккаунта? Зарегистрироваться</button>
   </div>
 
-  <!-- Экран 2: Панель управления и Таблица -->
+  <!-- Экран Приложения -->
   <div id="mainScreen" class="card hidden">
     <h3 id="welcomeMsg">Привет!</h3>
     <input type="number" id="numInput" placeholder="Введите ваше число...">
@@ -37,7 +46,7 @@
     <table>
       <thead>
         <tr>
-          <th>Имя</th>
+          <th>Пользователь</th>
           <th>Число</th>
         </tr>
       </thead>
@@ -48,43 +57,93 @@
   <script>
     const socket = io();
 
-    const loginScreen = document.getElementById('loginScreen');
+    let isLoginMode = true; // true = Вход, false = Регистрация
+    let myUsername = "";
+
+    const authScreen = document.getElementById('authScreen');
     const mainScreen = document.getElementById('mainScreen');
-    const nameInput = document.getElementById('nameInput');
-    const loginBtn = document.getElementById('loginBtn');
+    const authTitle = document.getElementById('authTitle');
+    const msgBox = document.getElementById('msgBox');
+    const usernameInput = document.getElementById('usernameInput');
+    const passwordInput = document.getElementById('passwordInput');
+    const authPrimaryBtn = document.getElementById('authPrimaryBtn');
+    const toggleAuthBtn = document.getElementById('toggleAuthBtn');
+    
     const welcomeMsg = document.getElementById('welcomeMsg');
     const numInput = document.getElementById('numInput');
     const pushBtn = document.getElementById('pushBtn');
     const tableBody = document.getElementById('tableBody');
 
-    let myName = "";
-
-    // Вход под именем
-    loginBtn.addEventListener('click', () => {
-      const name = nameInput.value.trim();
-      if (name) {
-        myName = name;
-        welcomeMsg.innerText = "Имя: " + myName;
-        loginScreen.classList.add('hidden');
-        mainScreen.classList.remove('hidden');
-        socket.emit('join_user', myName);
+    // Переключение режим Вход / Регистрация
+    toggleAuthBtn.addEventListener('click', () => {
+      isLoginMode = !isLoginMode;
+      msgBox.innerHTML = "";
+      if (isLoginMode) {
+        authTitle.innerText = "Вход в систему";
+        authPrimaryBtn.innerText = "Войти";
+        toggleAuthBtn.innerText = "Нет аккаунта? Зарегистрироваться";
+      } else {
+        authTitle.innerText = "Регистрация";
+        authPrimaryBtn.innerText = "Зарегистрироваться";
+        toggleAuthBtn.innerText = "Уже есть аккаунт? Войти";
       }
     });
 
-    // Отправка числа по кнопке Push
+    // Нажатие главной кнопки (Вход или Регистрация)
+    authPrimaryBtn.addEventListener('click', () => {
+      const username = usernameInput.value;
+      const password = passwordInput.value;
+      msgBox.innerHTML = "";
+
+      if (isLoginMode) {
+        socket.emit('login', { username, password });
+      } else {
+        socket.emit('register', { username, password });
+      }
+    });
+
+    // Обработка ошибок
+    socket.on('auth_error', (msg) => {
+      msgBox.innerHTML = `<div class="error">${msg}</div>`;
+    });
+
+    // Успешная регистрация
+    socket.on('auth_success', (data) => {
+      msgBox.innerHTML = `<div class="success">${data.message}</div>`;
+      isLoginMode = true;
+      authTitle.innerText = "Вход в систему";
+      authPrimaryBtn.innerText = "Войти";
+      toggleAuthBtn.innerText = "Нет аккаунта? Зарегистрироваться";
+      passwordInput.value = "";
+    });
+
+    // Успешный вход
+    socket.on('login_success', (data) => {
+      myUsername = data.username;
+      welcomeMsg.innerText = "Вы вошли как: " + myUsername;
+      authScreen.classList.add('hidden');
+      mainScreen.classList.remove('hidden');
+      renderTable(data.tableData);
+    });
+
+    // Нажатие PUSH
     pushBtn.addEventListener('click', () => {
       socket.emit('push_data', numInput.value);
     });
 
     // Обновление таблицы в режиме реального времени
     socket.on('update_table', (usersData) => {
+      renderTable(usersData);
+    });
+
+    function renderTable(usersData) {
       tableBody.innerHTML = "";
       for (const [name, val] of Object.entries(usersData)) {
         const row = document.createElement('tr');
         row.innerHTML = `<td><b>${name}</b></td><td>${val}</td>`;
         tableBody.appendChild(row);
       }
-    });
+    }
   </script>
 </body>
 </html>
