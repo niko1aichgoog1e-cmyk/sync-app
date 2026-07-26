@@ -15,7 +15,7 @@
     button.secondary:hover { background: #5a6268; }
     button.danger { background: #dc3545; }
     button.danger:hover { background: #bd2130; }
-    .hidden { display: none; }
+    .hidden { display: none !important; }
     .error { color: red; font-size: 14px; margin-bottom: 10px; }
     .success { color: green; font-size: 14px; margin-bottom: 10px; }
     table { width: 100%; border-collapse: collapse; margin-top: 20px; }
@@ -27,7 +27,7 @@
 <body>
 
   <!-- Экран Входа / Регистрации -->
-  <div id="authScreen" class="card">
+  <div id="authScreen" class="card hidden">
     <h2 id="authTitle">Вход в систему</h2>
     <div id="msgBox"></div>
     
@@ -78,23 +78,32 @@
     const logoutBtn = document.getElementById('logoutBtn');
     const tableBody = document.getElementById('tableBody');
 
-    // Проверяем, есть ли сохраненные данные в памяти браузера (localStorage)
+    // 1. МГНОВЕННАЯ ПРОВЕРКА СЕССИИ ПРИ ЗАГРУЗКЕ СТРАНИЦЫ (до подключения сети)
+    const savedUserJson = localStorage.getItem('sync_user');
+    let savedUser = null;
+
+    if (savedUserJson) {
+      try {
+        savedUser = JSON.parse(savedUserJson);
+        myUsername = savedUser.username;
+        welcomeMsg.innerText = "Вы вошли как: " + myUsername;
+        mainScreen.classList.remove('hidden'); // Сразу открываем главный экран!
+      } catch (e) {
+        localStorage.removeItem('sync_user');
+        authScreen.classList.remove('hidden');
+      }
+    } else {
+      authScreen.classList.remove('hidden'); // Покажем форму входа только если авторизации нет
+    }
+
+    // 2. ФОНОВОЕ ПОДКЛЮЧЕНИЕ И СИНХРОНИЗАЦИЯ
     socket.on('connect', () => {
-      const savedUser = localStorage.getItem('sync_user');
       if (savedUser) {
-        try {
-          const { username, password } = JSON.parse(savedUser);
-          usernameInput.value = username;
-          passwordInput.value = password;
-          // Автоматический вход при подключении
-          socket.emit('login', { username, password });
-        } catch (e) {
-          localStorage.removeItem('sync_user');
-        }
+        socket.emit('login', { username: savedUser.username, password: savedUser.password });
       }
     });
 
-    // Переключение режим Вход / Регистрация
+    // Переключение режима Вход / Регистрация
     toggleAuthBtn.addEventListener('click', () => {
       isLoginMode = !isLoginMode;
       msgBox.innerHTML = "";
@@ -122,10 +131,11 @@
       }
     });
 
-    // Обработка ошибок
+    // Если пароль изменился или сессия невалидна - возвращаем на экран входа
     socket.on('auth_error', (msg) => {
-      // Если автовход не удался (например, пароль изменился) - чистим память
       localStorage.removeItem('sync_user');
+      mainScreen.classList.add('hidden');
+      authScreen.classList.remove('hidden');
       msgBox.innerHTML = `<div class="error">${msg}</div>`;
     });
 
@@ -143,11 +153,12 @@
     socket.on('login_success', (data) => {
       myUsername = data.username;
       
-      // СОХРАНЯЕМ СЕССИЮ В ЛОКАЛЬНУЮ ПАМЯТЬ БРАУЗЕРА
-      localStorage.setItem('sync_user', JSON.stringify({
-        username: usernameInput.value,
-        password: passwordInput.value
-      }));
+      const userObj = {
+        username: usernameInput.value || (savedUser && savedUser.username),
+        password: passwordInput.value || (savedUser && savedUser.password)
+      };
+
+      localStorage.setItem('sync_user', JSON.stringify(userObj));
 
       welcomeMsg.innerText = "Вы вошли как: " + myUsername;
       authScreen.classList.add('hidden');
@@ -158,7 +169,7 @@
     // Выход из аккаунта
     logoutBtn.addEventListener('click', () => {
       localStorage.removeItem('sync_user');
-      location.reload(); // Перезагружаем страницу для чистого входа
+      location.reload();
     });
 
     // Нажатие PUSH
@@ -166,7 +177,7 @@
       socket.emit('push_data', numInput.value);
     });
 
-    // Обновление таблицы в режиме реального времени
+    // Обновление таблицы
     socket.on('update_table', (usersData) => {
       renderTable(usersData);
     });
